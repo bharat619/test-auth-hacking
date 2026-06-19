@@ -34,7 +34,7 @@ yarn-error.log*
 .env*
 !.env.local.example
 
-# local note storage
+# local note storage (legacy filesystem — no longer used)
 /data
 
 # vercel

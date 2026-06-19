@@ -1,7 +1,4 @@
-import fs from "fs/promises";
-import path from "path";
-import { randomUUID } from "crypto";
-import { getDataDir } from "./storage";
+import { ensureSchema, getSql } from "./db";
 
 export interface Note {
   id: string;
@@ -12,45 +9,36 @@ export interface Note {
   updatedAt: string;
 }
 
-function userNotesDir(username: string): string {
-  return path.join(getDataDir(), "users", username, "notes");
+interface NoteRow {
+  id: string;
+  owner: string;
+  title: string;
+  body: string;
+  created_at: Date;
+  updated_at: Date;
 }
 
-async function ensureDir(dir: string): Promise<void> {
-  await fs.mkdir(dir, { recursive: true });
-}
-
-async function readNoteFile(filePath: string): Promise<Note | null> {
-  try {
-    const raw = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(raw) as Note;
-  } catch {
-    return null;
-  }
+function rowToNote(row: NoteRow): Note {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    owner: row.owner,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
 }
 
 export async function listNotesForUser(username: string): Promise<Note[]> {
-  const dir = userNotesDir(username);
-  await ensureDir(dir);
-
-  let files: string[];
-  try {
-    files = await fs.readdir(dir);
-  } catch {
-    return [];
-  }
-
-  const notes: Note[] = [];
-  for (const file of files) {
-    if (!file.endsWith(".json")) continue;
-    const note = await readNoteFile(path.join(dir, file));
-    if (note) notes.push(note);
-  }
-
-  return notes.sort(
-    (a, b) =>
-      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
-  );
+  await ensureSchema();
+  const sql = getSql();
+  const rows = await sql<NoteRow[]>`
+    SELECT id, owner, title, body, created_at, updated_at
+    FROM notes
+    WHERE owner = ${username}
+    ORDER BY updated_at DESC
+  `;
+  return rows.map(rowToNote);
 }
 
 export async function createNote(
@@ -58,49 +46,26 @@ export async function createNote(
   title: string,
   body: string,
 ): Promise<Note> {
-  const dir = userNotesDir(username);
-  await ensureDir(dir);
-
-  const now = new Date().toISOString();
-  const note: Note = {
-    id: randomUUID(),
-    title,
-    body,
-    owner: username,
-    createdAt: now,
-    updatedAt: now,
-  };
-
-  await fs.writeFile(
-    path.join(dir, `${note.id}.json`),
-    JSON.stringify(note, null, 2),
-    "utf-8",
-  );
-
-  return note;
-}
-
-async function listAllUserDirs(): Promise<string[]> {
-  const usersRoot = path.join(getDataDir(), "users");
-  await ensureDir(usersRoot);
-
-  try {
-    return await fs.readdir(usersRoot);
-  } catch {
-    return [];
-  }
+  await ensureSchema();
+  const sql = getSql();
+  const [row] = await sql<NoteRow[]>`
+    INSERT INTO notes (owner, title, body)
+    VALUES (${username}, ${title}, ${body})
+    RETURNING id, owner, title, body, created_at, updated_at
+  `;
+  return rowToNote(row);
 }
 
 export async function resolveNoteById(id: string): Promise<Note | null> {
-  const users = await listAllUserDirs();
-
-  for (const username of users) {
-    const filePath = path.join(userNotesDir(username), `${id}.json`);
-    const note = await readNoteFile(filePath);
-    if (note) return note;
-  }
-
-  return null;
+  await ensureSchema();
+  const sql = getSql();
+  const rows = await sql<NoteRow[]>`
+    SELECT id, owner, title, body, created_at, updated_at
+    FROM notes
+    WHERE id = ${id}
+    LIMIT 1
+  `;
+  return rows[0] ? rowToNote(rows[0]) : null;
 }
 
 export async function updateNoteById(
@@ -108,26 +73,24 @@ export async function updateNoteById(
   title: string,
   body: string,
 ): Promise<Note | null> {
-  const note = await resolveNoteById(id);
-  if (!note) return null;
-
-  const updated: Note = {
-    ...note,
-    title,
-    body,
-    updatedAt: new Date().toISOString(),
-  };
-
-  const filePath = path.join(userNotesDir(note.owner), `${id}.json`);
-  await fs.writeFile(filePath, JSON.stringify(updated, null, 2), "utf-8");
-  return updated;
+  await ensureSchema();
+  const sql = getSql();
+  const rows = await sql<NoteRow[]>`
+    UPDATE notes
+    SET title = ${title}, body = ${body}, updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING id, owner, title, body, created_at, updated_at
+  `;
+  return rows[0] ? rowToNote(rows[0]) : null;
 }
 
 export async function deleteNoteById(id: string): Promise<boolean> {
-  const note = await resolveNoteById(id);
-  if (!note) return false;
-
-  const filePath = path.join(userNotesDir(note.owner), `${id}.json`);
-  await fs.unlink(filePath);
-  return true;
+  await ensureSchema();
+  const sql = getSql();
+  const rows = await sql<{ id: string }[]>`
+    DELETE FROM notes
+    WHERE id = ${id}
+    RETURNING id
+  `;
+  return rows.length > 0;
 }
