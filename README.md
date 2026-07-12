@@ -1,12 +1,11 @@
 # Notify
 
-A playful notes app built with Next.js (App Router), TypeScript, and PostgreSQL. Users authenticate with credentials stored in environment variables; notes are persisted in Postgres.
+A playful notes app built with Next.js (App Router), TypeScript, PostgreSQL, and Auth0 authentication.
 
 ## Features
 
-- User login / logout (JWT stored in httpOnly cookies)
+- Auth0 OIDC sign-in / sign-out (Auth.js)
 - Create, read, update, and delete notes (title + body)
-- Multi-user support via environment configuration
 - Permanent PostgreSQL storage
 - Deployable to Vercel with Neon Postgres
 
@@ -22,30 +21,35 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Default demo users (from `.env.local.example`):
-
-| Username | Password     |
-|----------|--------------|
-| alice    | password123  |
-| bob      | password456  |
-
 ## Environment variables
 
-| Variable       | Description                                      |
-|----------------|--------------------------------------------------|
-| `JWT_SECRET`   | Secret key for signing JWT tokens (min 32 chars) |
-| `AUTH_USERS`   | Comma-separated `username:password` pairs        |
-| `DATABASE_URL` | PostgreSQL connection string                     |
+| Variable             | Description                                  |
+|----------------------|----------------------------------------------|
+| `APP_BASE_URL`       | App URL (e.g. `http://localhost:3000`)       |
+| `AUTH0_DOMAIN`       | Auth0 tenant domain                          |
+| `AUTH0_CLIENT_ID`    | Auth0 application client ID                  |
+| `AUTH0_CLIENT_SECRET`| Auth0 application client secret              |
+| `AUTH0_SECRET`       | Session encryption secret (64-char hex)      |
+| `DATABASE_URL`       | PostgreSQL connection string                 |
 
-Example:
+Generate `AUTH0_SECRET`:
 
+```bash
+openssl rand -hex 32
 ```
-JWT_SECRET=your-secret-key-here
-AUTH_USERS=alice:secretpass,bob:otherpass
-DATABASE_URL=postgresql://notify:notify@localhost:5433/notify
-```
 
-On Vercel with Neon, `DATABASE_URL` is injected automatically when you connect the Neon integration.
+## Auth0 application setup
+
+1. In the [Auth0 Dashboard](https://manage.auth0.com/), create a **Regular Web Application**.
+2. Set **Allowed Callback URLs**:
+   - `http://localhost:3000/api/auth/callback/auth0`
+   - `https://notes-crud-app-eta.vercel.app/api/auth/callback/auth0`
+3. Set **Allowed Logout URLs**:
+   - `http://localhost:3000/login`
+   - `https://notes-crud-app-eta.vercel.app/login`
+4. Copy **Domain**, **Client ID**, and **Client Secret** into `.env.local`.
+
+Create test users under **User Management → Users** for multi-user / IDOR testing.
 
 ## Database schema
 
@@ -66,46 +70,41 @@ Run migrations locally:
 npm run db:migrate
 ```
 
-The app also auto-creates the schema on first request if it does not exist.
-
 ## API endpoints
 
-| Method | Path               | Description               |
-|--------|--------------------|---------------------------|
-| POST   | `/api/auth/login`  | Authenticate user         |
-| POST   | `/api/auth/logout` | Clear session cookie      |
-| GET    | `/api/auth/me`     | Current user info         |
-| GET    | `/api/notes`       | List current user's notes |
-| POST   | `/api/notes`       | Create a note             |
-| GET    | `/api/notes/:id`   | Get a note by ID          |
-| PUT    | `/api/notes/:id`   | Update a note by ID       |
-| DELETE | `/api/notes/:id`   | Delete a note by ID       |
+| Method | Path                       | Description               |
+|--------|----------------------------|---------------------------|
+| GET    | `/api/auth/signin/auth0`   | Start Auth0 sign-in       |
+| POST   | `/api/auth/signout`        | Sign out                  |
+| GET    | `/api/auth/me`             | Current user info         |
+| GET    | `/api/notes`               | List current user's notes |
+| POST   | `/api/notes`               | Create a note             |
+| GET    | `/api/notes/:id`           | Get a note by ID          |
+| PUT    | `/api/notes/:id`           | Update a note by ID       |
+| DELETE | `/api/notes/:id`           | Delete a note by ID       |
+
+Note `owner` is derived from the Auth0 profile (`nickname`, `preferred_username`, or email prefix).
 
 ## Deploy to Vercel
 
-1. Push this repo to GitHub.
-2. Import the project in [Vercel](https://vercel.com/new).
-3. Add the [Neon Postgres](https://vercel.com/integrations/neon) integration and connect it to the project.
-4. Set environment variables:
-   - `JWT_SECRET` — generate a strong random string
-   - `AUTH_USERS` — e.g. `alice:yourpass,bob:theirpass`
-   - `DATABASE_URL` — provided by Neon when connected
-5. Deploy.
+Set environment variables in Vercel:
 
-Or use the Vercel CLI:
+- `APP_BASE_URL` → your production URL
+- `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_SECRET`
+- `DATABASE_URL`
+
+Add the production callback URL to Auth0, then deploy:
 
 ```bash
-npx vercel integration add neon/neon
-vercel env pull .env.local
-npm run db:migrate
 npx vercel deploy --prod
 ```
 
 ## Security testing with Strix
 
-Point Strix at your deployed URL (or `http://localhost:3000` for local scans). Provide credentials for at least two users so the scanner can authenticate and exercise the notes API.
+Auth0 login uses a browser redirect flow. For Strix scans, use **session import**:
 
-Example Strix target configuration:
+```bash
+uv run strix -t https://notes-crud-app-eta.vercel.app --session-file storage_state.json
+```
 
-- **Target URL:** your deployment URL
-- **Auth:** login form at `/login` or API at `POST /api/auth/login`
+Use at least two Auth0 test users to exercise multi-account scenarios (e.g. IDOR testing).

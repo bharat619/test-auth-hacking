@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { LogIn } from "lucide-react";
 import { NotifyLogo } from "@/components/brand/logo";
 import { PlayfulBackground } from "@/components/layout/playful-background";
@@ -13,43 +13,31 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
-export default function LoginForm() {
-  const router = useRouter();
+const ERROR_MESSAGES: Record<string, string> = {
+  Configuration:
+    "Auth0 is misconfigured. Check AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, and AUTH0_SECRET in .env.local.",
+  AccessDenied: "Access was denied. Your account may not be allowed to use this app.",
+  OAuthSignin: "Could not start Auth0 sign-in. Verify AUTH0_DOMAIN is correct.",
+  OAuthCallback:
+    "Auth0 sign-in callback failed. Check callback URL in your Auth0 application settings.",
+};
+
+export default function LoginForm({
+  setupError,
+}: {
+  setupError: string | null;
+}) {
   const searchParams = useSearchParams();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const authError = searchParams.get("error");
+  const errorMessage =
+    setupError ??
+    (authError ? (ERROR_MESSAGES[authError] ?? "Sign in failed. Please try again.") : null);
 
-  async function handleLogin(event: FormEvent) {
-    event.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setError(data.error ?? "Invalid credentials. Please try again.");
-        return;
-      }
-
-      const from = searchParams.get("from") ?? "/notes";
-      router.push(from);
-      router.refresh();
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+  function handleAuth0Login() {
+    if (setupError) return;
+    const callbackUrl = searchParams.get("from") ?? "/notes";
+    void signIn("auth0", { callbackUrl });
   }
 
   return (
@@ -65,57 +53,35 @@ export default function LoginForm() {
           <CardHeader className="space-y-2 pb-2">
             <CardTitle className="font-heading text-2xl">Welcome back!</CardTitle>
             <CardDescription className="text-base">
-              Sign in with your username and password.
+              Sign in with your organization account.
             </CardDescription>
           </CardHeader>
 
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="yourname"
-                  autoComplete="username"
-                  autoFocus
-                  required
-                  className="h-11 rounded-xl border-violet-100 bg-white/90"
-                />
+          <CardContent className="space-y-4">
+            {errorMessage && (
+              <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <p>{errorMessage}</p>
+                {setupError && (
+                  <p className="mt-2 text-xs text-destructive/80">
+                    Auth0 callback URL:{" "}
+                    <code className="rounded bg-destructive/10 px-1">
+                      http://localhost:3000/api/auth/callback/auth0
+                    </code>
+                  </p>
+                )}
               </div>
+            )}
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  required
-                  className="h-11 rounded-xl border-violet-100 bg-white/90"
-                />
-              </div>
-
-              {error && (
-                <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {error}
-                </p>
-              )}
-
-              <Button
-                type="submit"
-                size="lg"
-                className="h-11 w-full rounded-xl"
-                disabled={loading}
-              >
-                {loading ? "Signing in..." : "Sign in"}
-                {!loading && <LogIn data-icon="inline-end" />}
-              </Button>
-            </form>
+            <Button
+              type="button"
+              size="lg"
+              className="h-11 w-full rounded-xl"
+              onClick={handleAuth0Login}
+              disabled={Boolean(setupError)}
+            >
+              Sign in
+              <LogIn data-icon="inline-end" />
+            </Button>
           </CardContent>
         </Card>
 

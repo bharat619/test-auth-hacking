@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 
 interface NotesViewProps {
@@ -109,9 +110,7 @@ export function NotesView({
   }
 
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
+    await signOut({ callbackUrl: "/login" });
   }
 
   if (loading) {

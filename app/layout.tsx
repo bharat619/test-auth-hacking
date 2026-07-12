@@ -1,6 +1,7 @@
 import { Fredoka, Nunito } from "next/font/google";
 import type { Metadata } from "next";
 import { cn } from "@/lib/utils";
+import { AuthSessionProvider } from "@/components/providers/session-provider";
 import "./globals.css";
 
 const nunito = Nunito({
@@ -33,7 +34,9 @@ export default function RootLayout({
         "font-sans",
       )}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AuthSessionProvider>{children}</AuthSessionProvider>
+      </body>
     </html>
   );
 }
