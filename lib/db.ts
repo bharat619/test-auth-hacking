@@ -64,3 +64,9 @@ export async function ensureSchema(): Promise<void> {
 
   await schemaReady;
 }
+
+export async function clearAllRecords(): Promise<void> {
+  await ensureSchema();
+  const sql = getSql();
+  await sql`TRUNCATE TABLE notes`;
+}
