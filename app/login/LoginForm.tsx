@@ -39,10 +39,15 @@ export default function LoginForm({
       ? (ERROR_MESSAGES[authError] ?? "Sign in failed. Please try again.")
       : null);
 
-  function handleAuth0Login() {
+  function handleAuth0Login(forcePrompt = false) {
     if (setupError) return;
     const callbackUrl = searchParams.get("from") ?? "/notes";
-    void signIn("auth0", { callbackUrl });
+    void signIn(
+      "auth0",
+      forcePrompt
+        ? { callbackUrl, authorizationParams: { prompt: "login" } }
+        : { callbackUrl },
+    );
   }
 
   return (
@@ -83,12 +88,22 @@ export default function LoginForm({
               type="button"
               size="lg"
               className="h-11 w-full rounded-xl"
-              onClick={handleAuth0Login}
+              onClick={() => handleAuth0Login()}
               disabled={Boolean(setupError)}
             >
               Sign in
               <LogIn data-icon="inline-end" />
             </Button>
+
+            {!setupError && (
+              <button
+                type="button"
+                className="w-full text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                onClick={() => handleAuth0Login(true)}
+              >
+                Use a different account
+              </button>
+            )}
           </CardContent>
         </Card>
 

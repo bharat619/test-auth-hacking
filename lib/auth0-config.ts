@@ -83,3 +83,42 @@ export function applyAuth0EnvAliases(): void {
 export function getAuth0CallbackPath(): string {
   return "/api/auth/callback/auth0";
 }
+
+function getAuth0Domain(): string {
+  return (
+    process.env.AUTH0_DOMAIN?.trim()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/$/, "") ?? ""
+  );
+}
+
+export function isAllowedAuth0LogoutUrl(url: string): boolean {
+  const domain = getAuth0Domain();
+  if (!domain) return false;
+
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.origin === `https://${domain}` && parsed.pathname === "/v2/logout"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Auth0 /v2/logout URL — clears the Auth0 SSO session so the next sign-in can use a different account. */
+export function getAuth0LogoutUrl(returnTo: string): string | null {
+  const domain = getAuth0Domain();
+  const clientId = process.env.AUTH0_CLIENT_ID?.trim();
+
+  if (!domain || !clientId || isPlaceholder(domain) || isPlaceholder(clientId)) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    returnTo,
+  });
+
+  return `https://${domain}/v2/logout?${params.toString()}`;
+}

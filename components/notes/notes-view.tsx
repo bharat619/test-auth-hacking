@@ -14,7 +14,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 
 interface NotesViewProps {
@@ -109,8 +108,9 @@ export function NotesView({
     setNotes((prev) => prev.filter((n) => n.id !== noteId));
   }
 
-  async function handleLogout() {
-    await signOut({ callbackUrl: "/login" });
+  function handleLogout() {
+    // Federated logout clears both the app session and Auth0 SSO session.
+    window.location.assign("/api/auth/federated-logout");
   }
 
   if (loading) {

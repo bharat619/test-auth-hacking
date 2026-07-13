@@ -3,6 +3,7 @@ import Auth0 from "next-auth/providers/auth0";
 import {
   applyAuth0EnvAliases,
   getAuth0ConfigStatus,
+  isAllowedAuth0LogoutUrl,
 } from "@/lib/auth0-config";
 
 applyAuth0EnvAliases();
@@ -36,6 +37,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       ]
     : [],
   callbacks: {
+    redirect({ url, baseUrl }) {
+      if (isAllowedAuth0LogoutUrl(url)) return url;
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
     jwt({ token, profile }) {
       if (profile) {
         token.username = resolveUsername(profile as Record<string, unknown>);
