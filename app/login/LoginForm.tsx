@@ -17,22 +17,27 @@ import {
 const ERROR_MESSAGES: Record<string, string> = {
   Configuration:
     "Auth0 is misconfigured. Check AUTH0_DOMAIN, AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, and AUTH0_SECRET in .env.local.",
-  AccessDenied: "Access was denied. Your account may not be allowed to use this app.",
+  AccessDenied:
+    "Access was denied. Your account may not be allowed to use this app.",
   OAuthSignin: "Could not start Auth0 sign-in. Verify AUTH0_DOMAIN is correct.",
   OAuthCallback:
-    "Auth0 sign-in callback failed. Check callback URL in your Auth0 application settings.",
+    "Auth0 sign-in callback failed. Add the exact callback URL below to Auth0 Allowed Callback URLs.",
 };
 
 export default function LoginForm({
   setupError,
+  callbackUrl,
 }: {
   setupError: string | null;
+  callbackUrl: string;
 }) {
   const searchParams = useSearchParams();
   const authError = searchParams.get("error");
   const errorMessage =
     setupError ??
-    (authError ? (ERROR_MESSAGES[authError] ?? "Sign in failed. Please try again.") : null);
+    (authError
+      ? (ERROR_MESSAGES[authError] ?? "Sign in failed. Please try again.")
+      : null);
 
   function handleAuth0Login() {
     if (setupError) return;
@@ -51,7 +56,9 @@ export default function LoginForm({
 
         <Card className="border-violet-100/80 bg-white/80 shadow-xl shadow-violet-500/10 backdrop-blur-sm">
           <CardHeader className="space-y-2 pb-2">
-            <CardTitle className="font-heading text-2xl">Welcome back!</CardTitle>
+            <CardTitle className="font-heading text-2xl">
+              Welcome back!
+            </CardTitle>
             <CardDescription className="text-base">
               Sign in with your organization account.
             </CardDescription>

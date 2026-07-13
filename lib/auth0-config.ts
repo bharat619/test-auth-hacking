@@ -74,7 +74,12 @@ export function applyAuth0EnvAliases(): void {
   if (!process.env.AUTH_SECRET && process.env.AUTH0_SECRET) {
     process.env.AUTH_SECRET = process.env.AUTH0_SECRET;
   }
-  if (!process.env.AUTH_URL && process.env.APP_BASE_URL) {
+  // Only pin AUTH_URL for local dev. On Vercel, trustHost infers the host from the request.
+  if (!process.env.AUTH_URL && process.env.APP_BASE_URL && !process.env.VERCEL) {
     process.env.AUTH_URL = process.env.APP_BASE_URL;
   }
+}
+
+export function getAuth0CallbackPath(): string {
+  return "/api/auth/callback/auth0";
 }
